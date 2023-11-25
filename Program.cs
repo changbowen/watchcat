@@ -14,7 +14,24 @@ namespace watchcat
 
         static void Main(string[] args)
         {
-            Opts = Parser.Default.ParseArguments<Options>(args).Value;
+            var parser = new Parser(settings => {
+                settings.GetoptMode = true;
+                settings.HelpWriter = Console.Error;
+            });
+
+            // get args for exe first
+            // all content after -a or --args is stripped from parsing
+            var ai = (Array.IndexOf(args, @"-a"), Array.IndexOf(args, @"--args"));
+            if (ai.Item1 < 0) ai.Item1 = int.MaxValue;
+            if (ai.Item2 < 0) ai.Item2 = int.MaxValue;
+
+            var argIdx = Math.Min(ai.Item1, ai.Item2);
+            if (argIdx < int.MaxValue) {
+                Opts = parser.ParseArguments<Options>(args[0..argIdx]).Value;
+                if (Opts != null) Opts.Arguments = string.Join(' ', args[(argIdx + 1)..]);
+            }
+            else Opts = parser.ParseArguments<Options>(args).Value;
+
             if (Opts == null) return;
 
             if (Opts.Verbose)
@@ -33,17 +50,15 @@ namespace watchcat
                 ConsoleWrite("No executable set. No action will be called on changes.", ConsoleColor.Yellow);
 
             foreach (var path in Opts.Paths) {
-                var di = string.IsNullOrEmpty(path) ? null : new DirectoryInfo(path);
-                if (di == null || (int)di.Attributes == -1) {
+                FileSystemWatcher watcher;
+                if (Directory.Exists(path))
+                    watcher = new FileSystemWatcher(path) { IncludeSubdirectories = true };
+                else if (File.Exists(path))
+                    watcher = new FileSystemWatcher(Path.GetDirectoryName(path), Path.GetFileName(path));
+                else {
                     ConsoleWrite($"Path {path} is invalid and will be skipped.", ConsoleColor.Yellow);
                     continue;
                 }
-
-                FileSystemWatcher watcher;
-                if (di.Attributes.HasFlag(FileAttributes.Directory)) {
-                    watcher = new FileSystemWatcher(di.FullName) { IncludeSubdirectories = true };
-                }
-                else watcher = new FileSystemWatcher(di.Parent.FullName, di.Name);
 
                 watcher.NotifyFilter =
                     NotifyFilters.FileName |
@@ -57,7 +72,12 @@ namespace watchcat
                 Watchers.Add(watcher);
 
                 watcher.EnableRaisingEvents = true;
-                ConsoleWrite($"Watcher active: {di.FullName}", ConsoleColor.Cyan);
+                ConsoleWrite($"Watcher active: {path}", ConsoleColor.Cyan);
+            }
+
+            if (Watchers.Count == 0) {
+                ConsoleWrite($"No watcher is created. Program will exit now.", ConsoleColor.Red);
+                return;
             }
 
             if (Opts.LaunchDelay > 0f) {
