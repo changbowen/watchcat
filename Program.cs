@@ -8,33 +8,6 @@ namespace watchcat
 {
     internal class Program
     {
-        public class Options
-        {
-            [Value(0, MetaName = "paths", Required = true, HelpText = "List of paths to monitor separated by spaces.")]
-            public IEnumerable<string> Paths { get; set; }
-
-            [Option('e', "executable", HelpText = "Path to the executable to execute when changes are detected.")]
-            public string Executable { get; set; }
-
-            [Option('a', "args", HelpText = "Arguments to pass to the executable.")]
-            public string Arguments { get; set; }
-
-            [Option('t', "wait-timeout", Default = 0f, HelpText = "Max time in seconds to wait for program to exit. Set to -1 to wait indefinitely.")]
-            public float WaitTimeout { get; set; }
-
-            [Option('d', "launch-delay", Default = 0f, HelpText = "Delay in seconds to launch the executable. Changes during the delay restart the timer.")]
-            public float LaunchDelay { get; set; }
-
-            [Option('w', "no-window", Default = false, HelpText = "Do not create new window for started program.")]
-            public bool NoWindow { get; set; }
-
-            [Option('p', "load-profile", Default = false, HelpText = "Load user profile for started program.")]
-            public bool LoadProfile { get; set; }
-
-            [Option('v', "verbose", Default = false, HelpText = "Verbose output.")]
-            public bool Verbose { get; set; }
-        }
-
         public static List<FileSystemWatcher> Watchers { get; set; } = new();
         public static System.Timers.Timer LaunchTimer { get; private set; }
         public static Options Opts { get; set; }
@@ -48,7 +21,7 @@ namespace watchcat
                 ConsoleWrite($"Started with options:" +
                     (!string.IsNullOrWhiteSpace(Opts.Executable) ? $"\n  Executable: {Opts.Executable}" : null) +
                     (!string.IsNullOrWhiteSpace(Opts.Arguments) ? $"\n  Arguments: {Opts.Arguments}" : null) +
-                    $"\n  Wait for exit: {(Opts.WaitTimeout > 0 ? $"{Opts.WaitTimeout}s" : (Opts.WaitTimeout == 0 ? "Do not wait" : "Indefinitely"))}" +
+                    $"\n  Wait for exit: {(Opts.WaitTimeout > 0f ? $"{Opts.WaitTimeout}s" : (Opts.WaitTimeout == 0f ? "Do not wait" : "Indefinitely"))}" +
                     $"\n  Launch delay: {Opts.LaunchDelay}s" +
                     (Opts.NoWindow ? "\n  Do not create new window" : null) +
                     (Opts.LoadProfile ? "\n  Load user profile" : null), ConsoleColor.DarkGray);
@@ -87,8 +60,8 @@ namespace watchcat
                 ConsoleWrite($"Watcher active: {di.FullName}", ConsoleColor.Cyan);
             }
 
-            if (Opts.LaunchDelay > 0) {
-                LaunchTimer = new(Opts.LaunchDelay * 1000) { AutoReset = false };
+            if (Opts.LaunchDelay > 0f) {
+                LaunchTimer = new(Opts.LaunchDelay * 1000f) { AutoReset = false };
                 LaunchTimer.Elapsed += (s, e) => StartProcess();
             }
 
@@ -106,7 +79,7 @@ namespace watchcat
             if (Watchers?.Count > 0) {
                 foreach (var watcher in Watchers) { watcher.Dispose(); }
                 LaunchTimer?.Dispose();
-                ConsoleWrite("Clean up complete.", ConsoleColor.Cyan);
+                ConsoleWrite("Watchers removed.", ConsoleColor.Cyan);
             }
         }
 
@@ -118,7 +91,7 @@ namespace watchcat
         private static void OnChange(object sender, FileSystemEventArgs e)
         {
             if (Opts.Verbose)
-                ConsoleWrite($"{e.ChangeType} at {DateTime.Now:g}: {e.FullPath}", ConsoleColor.DarkGray);
+                ConsoleWrite($"{e.ChangeType} at {DateTime.Now:s}: {e.FullPath}", ConsoleColor.DarkGray);
 
             if (Opts.LaunchDelay > 0f) {
                 LaunchTimer.Stop();
@@ -147,10 +120,21 @@ namespace watchcat
                 };
                 proc.Start();
 
-                if (Opts.WaitTimeout > 0)
+                if (Opts.WaitTimeout == 0f) return;
+
+                // temporarily disable event when waiting for exit
+                if (Opts.Verbose)
+                    ConsoleWrite($"Waiting {(Opts.WaitTimeout > 0f ? Opts.WaitTimeout + "s " : null)}for program exit...", ConsoleColor.DarkGray);
+
+                Watchers.ForEach(watcher => { watcher.EnableRaisingEvents = false; });
+                if (Opts.WaitTimeout > 0f)
                     proc.WaitForExit((int)Math.Round(Opts.WaitTimeout * 1000));
-                else if (Opts.WaitTimeout == -1)
+                else if (Opts.WaitTimeout == -1f)
                     proc.WaitForExit();
+                Watchers.ForEach(watcher => { watcher.EnableRaisingEvents = true; });
+                
+                if (Opts.Verbose)
+                    ConsoleWrite($"Watchers resumed.", ConsoleColor.DarkGray);
             }
             catch (Exception ex) {
                 ConsoleWrite($"Error during execution:\n{ex}", ConsoleColor.Red);
