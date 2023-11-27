@@ -22,7 +22,7 @@ namespace watchcat
         [Option('w', "no-window", Default = false, HelpText = "Do not create new window for launched program.")]
         public bool NoWindow { get; set; }
 
-        [Option('u', "load-profile", Default = false, HelpText = "Load user profile for launched program.")]
+        [Option('u', "load-profile", Default = false, HelpText = "Load user profile for launched program. Only supported on Windows.")]
         public bool LoadProfile { get; set; }
 
         [Option('v', "verbose", Default = false, HelpText = "Verbose output.")]

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.IO;
 using CommandLine;
 using static watchcat.Helpers;
 
@@ -136,15 +135,16 @@ namespace watchcat
 
             Process proc = null;
             try {
-                proc = new Process() {
-                    StartInfo = new ProcessStartInfo() {
-                        FileName = Opts.Executable,
-                        Arguments = Opts.Arguments,
-                        UseShellExecute = false,
-                        LoadUserProfile = Opts.LoadProfile,
-                        CreateNoWindow = Opts.NoWindow,
-                    }
+                var si = new ProcessStartInfo() {
+                    FileName = Opts.Executable,
+                    Arguments = Opts.Arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = Opts.NoWindow,
                 };
+                if (OperatingSystem.IsWindows())
+                    si.LoadUserProfile = Opts.LoadProfile;
+
+                proc = new Process() { StartInfo = si };
                 proc.Start();
 
                 if (Opts.WaitTimeout == 0f) return;

@@ -11,7 +11,7 @@ Available options:
 -t, --wait-timeout    (Default: 0) Max time in seconds to wait for program exit. Set to -1 to wait indefinitely. All events will be ignored when waiting.
 -d, --launch-delay    (Default: 0) Delay in seconds to launch the executable. Change events during the delay restart the timer.
 -w, --no-window       (Default: false) Do not create new window for launched program.
--u, --load-profile    (Default: false) Load user profile for launched program.
+-u, --load-profile    (Default: false) Load user profile for launched program. Only supported on Windows.
 -v, --verbose         (Default: false) Verbose output.
 --help                Display this help screen.
 --version             Display version information.
