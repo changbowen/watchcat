@@ -34,8 +34,15 @@ namespace watchcat
 
             if (Opts == null) return;
 
+            // fully qualify paths
+            Opts.Paths = Opts.Paths.Select(p => p.Trim())
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Select(p => Path.GetFullPath(p))
+                .ToArray();
+
             if (Opts.Verbose)
                 ConsoleWrite($"Started with options:" +
+                    $"\n  Paths:\n    {string.Join("\n    ", Opts.Paths)}" +
                     (!string.IsNullOrWhiteSpace(Opts.Executable) ? $"\n  Executable: {Opts.Executable}" : null) +
                     (!string.IsNullOrWhiteSpace(Opts.Arguments) ? $"\n  Arguments: {Opts.Arguments}" : null) +
                     $"\n  Wait for exit: {(Opts.WaitTimeout > 0f ? $"{Opts.WaitTimeout}s" : (Opts.WaitTimeout == 0f ? "Do not wait" : "Indefinitely"))}" +
