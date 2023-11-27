@@ -1,0 +1,57 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: .NET
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: "write"
+  # packages: "write"
+  # pull-requests: "read"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 6.0.x
+    
+    - name: Publish win_x64
+      run: dotnet publish -c Release --runtime win-x64 --self-contained -p:PublishSingleFile=true -p:PublishDir=publish/win_x64
+    - name: Zip win_x64
+      uses: thedoctor0/zip-release@0.7.5
+      with:
+        type: 'zip'
+        directory: 'publish/win_x64'
+        path: 'watchcat.exe'
+        filename: 'watchcat-windows-x64.zip'
+    
+    - name: Publish linux_x64
+      run: dotnet publish -c Release --runtime linux-x64 --self-contained -p:PublishSingleFile=true -p:PublishDir=publish/linux_x64
+    - name: Zip linux_x64
+      uses: thedoctor0/zip-release@0.7.5
+      with:
+        type: 'zip'
+        directory: 'publish/linux_x64'
+        path: 'watchcat'
+        filename: 'watchcat-linux-x64.zip'
+    
+    - name: Auto Release
+      uses: marvinpinto/action-automatic-releases@latest
+      with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          draft: false
+          prerelease: false
+          title: "Latest Release Build"
+          files: |
+            publish/win_x64/watchcat-windows-x64.zip
+            publish/linux_x64/watchcat-linux-x64.zip
