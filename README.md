@@ -1,4 +1,4 @@
-# Watch Cat
+# WatchCat
 
 Command line tool to watch for changes in directories / files and perform actions when changes are detected.
 
