@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using CommandLine;
 using static watchcat.Helpers;
@@ -10,6 +11,9 @@ namespace watchcat
         public static List<FileSystemWatcher> Watchers { get; set; } = new();
         public static System.Timers.Timer LaunchTimer { get; private set; }
         public static Options Opts { get; set; }
+
+        // Queue will be used for storing changes for processing
+        public static ConcurrentQueue<EventArgs> Queue { get; private set; } = new();
 
         static void Main(string[] args)
         {
@@ -55,6 +59,28 @@ namespace watchcat
             if (string.IsNullOrWhiteSpace(Opts.Executable))
                 ConsoleWrite("No executable set. No action will be called on changes.", ConsoleColor.Yellow);
 
+
+            // start monitoring queue for changes
+            Task.Run(() => {
+                while (true) {
+                    if (Queue.TryDequeue(out var evtArgs)) {
+                        switch (evtArgs) {
+                            case FileSystemEventArgs fsArgs:
+                                OnChange(null, fsArgs);
+                                break;
+                            case ErrorEventArgs errArgs:
+                                OnError(null, errArgs);
+                                break;
+                        }
+                    }
+                    else {
+                        Thread.Sleep(1000);
+                    }
+                }
+            });
+
+            static void enqueueEvent(object sender, EventArgs e) => Queue.Enqueue(e);
+
             foreach (var path in Opts.Paths) {
                 FileSystemWatcher watcher;
                 if (Directory.Exists(path))
@@ -66,15 +92,16 @@ namespace watchcat
                     continue;
                 }
 
+                watcher.InternalBufferSize = 64 * 1024;
                 watcher.NotifyFilter =
                     NotifyFilters.FileName |
                     NotifyFilters.DirectoryName |
                     NotifyFilters.LastWrite;
-                watcher.Changed += OnChange;
-                watcher.Created += OnChange;
-                watcher.Deleted += OnChange;
-                watcher.Renamed += OnChange;
-                watcher.Error += OnError;
+                watcher.Changed += enqueueEvent;
+                watcher.Created += enqueueEvent;
+                watcher.Deleted += enqueueEvent;
+                watcher.Renamed += enqueueEvent;
+                watcher.Error += enqueueEvent;
                 Watchers.Add(watcher);
 
                 watcher.EnableRaisingEvents = true;
@@ -130,6 +157,8 @@ namespace watchcat
         {
             if (string.IsNullOrWhiteSpace(Opts.Executable)) return;
 
+            Queue.Clear(); //tries to avoid potential memory leak
+
             if (Opts.Verbose)
                 ConsoleWrite($"Launch: {Opts.Executable} {Opts.Arguments}", ConsoleColor.DarkGray);
 
@@ -150,16 +179,16 @@ namespace watchcat
                 if (Opts.WaitTimeout == 0f) return;
 
                 // temporarily disable event when waiting for exit
-                if (Opts.Verbose)
-                    ConsoleWrite($"Waiting {(Opts.WaitTimeout > 0f ? Opts.WaitTimeout + "s " : null)}for program exit...", ConsoleColor.DarkGray);
-
                 Watchers.ForEach(watcher => { watcher.EnableRaisingEvents = false; });
+                if (Opts.Verbose)
+                    ConsoleWrite($"Watchers suspended. Waiting {(Opts.WaitTimeout > 0f ? Opts.WaitTimeout + "s " : null)}for program exit...", ConsoleColor.DarkGray);
+
                 if (Opts.WaitTimeout > 0f)
                     proc.WaitForExit((int)Math.Round(Opts.WaitTimeout * 1000));
                 else if (Opts.WaitTimeout == -1f)
                     proc.WaitForExit();
+
                 Watchers.ForEach(watcher => { watcher.EnableRaisingEvents = true; });
-                
                 if (Opts.Verbose)
                     ConsoleWrite($"Watchers resumed.", ConsoleColor.DarkGray);
             }
