@@ -10,6 +10,7 @@ Available options:
 -a, --args            Arguments to pass to the executable. Everything after this parameter will be passed to the executable.
 -t, --wait-timeout    (Default: 0) Max time in seconds to wait for program exit. Set to -1 to wait indefinitely. All events will be ignored when waiting.
 -d, --launch-delay    (Default: 0) Delay in seconds to launch the executable. Change events during the delay restart the timer.
+-r, --retry-delay     (Default: 10) Delay in seconds before starting to retry after errors.
 -w, --no-window       (Default: false) Do not create new window for launched program.
 -u, --load-profile    (Default: false) Load user profile for launched program. Only supported on Windows.
 -v, --verbose         (Default: false) Verbose output.

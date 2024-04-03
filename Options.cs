@@ -19,6 +19,9 @@ namespace watchcat
         [Option('d', "launch-delay", Default = 0f, HelpText = "Delay in seconds to launch the executable. Change events during the delay restart the timer.")]
         public float LaunchDelay { get; set; }
 
+        [Option('r', "retry-delay", Default = 10f, HelpText = "Delay in seconds before starting to retry after errors.")]
+        public float RetryDelay { get; set; }
+
         [Option('w', "no-window", Default = false, HelpText = "Do not create new window for launched program.")]
         public bool NoWindow { get; set; }
 

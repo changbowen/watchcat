@@ -13,7 +13,7 @@ namespace watchcat
         public static Options Opts { get; set; }
 
         // Queue will be used for storing changes for processing
-        public static ConcurrentQueue<EventArgs> Queue { get; private set; } = new();
+        public static ConcurrentQueue<FileSystemEventArgs> Queue { get; private set; } = new();
 
         static void Main(string[] args)
         {
@@ -63,23 +63,21 @@ namespace watchcat
             // start monitoring queue for changes
             Task.Run(() => {
                 while (true) {
-                    if (Queue.TryDequeue(out var evtArgs)) {
-                        switch (evtArgs) {
-                            case FileSystemEventArgs fsArgs:
-                                OnChange(null, fsArgs);
-                                break;
-                            case ErrorEventArgs errArgs:
-                                OnError(null, errArgs);
-                                break;
+                    if (Queue.TryDequeue(out var e)) {
+                        if (Opts.Verbose)
+                            ConsoleWrite($"{e.ChangeType} at {DateTime.Now:s}: {e.FullPath}", ConsoleColor.DarkGray);
+
+                        if (Opts.LaunchDelay > 0f) {
+                            LaunchTimer.Stop();
+                            LaunchTimer.Start();
                         }
+                        else StartProcess();
                     }
-                    else {
-                        Thread.Sleep(1000);
-                    }
+                    else Thread.Sleep(1000);
                 }
             });
 
-            static void enqueueEvent(object sender, EventArgs e) => Queue.Enqueue(e);
+            static void enqueueEvent(object sender, FileSystemEventArgs e) => Queue.Enqueue(e);
 
             foreach (var path in Opts.Paths) {
                 FileSystemWatcher watcher;
@@ -101,7 +99,23 @@ namespace watchcat
                 watcher.Created += enqueueEvent;
                 watcher.Deleted += enqueueEvent;
                 watcher.Renamed += enqueueEvent;
-                watcher.Error += enqueueEvent;
+                watcher.Error += (s, e) => {
+                    ConsoleWrite(e.GetException().ToString(), ConsoleColor.Red);
+
+                    // try to restart watcher after at least 2s delay
+                    Task.Run(() => {
+                        while (!watcher.EnableRaisingEvents) {
+                            Thread.Sleep((int)((Opts.RetryDelay > 2f ? Opts.RetryDelay : 2f) * 1000));
+                            try {
+                                watcher.EnableRaisingEvents = true;
+                                ConsoleWrite($"Watcher restarted for {watcher.Path}.", ConsoleColor.Yellow);
+                            }
+                            catch (Exception ex) {
+                                ConsoleWrite(ex.Message, ConsoleColor.Red);
+                            }
+                        }
+                    });
+                };
                 Watchers.Add(watcher);
 
                 watcher.EnableRaisingEvents = true;
@@ -134,23 +148,6 @@ namespace watchcat
                 LaunchTimer?.Dispose();
                 ConsoleWrite("Watchers removed.", ConsoleColor.Cyan);
             }
-        }
-
-        private static void OnError(object sender, ErrorEventArgs e)
-        {
-            ConsoleWrite(e.GetException().ToString(), ConsoleColor.Red);
-        }
-
-        private static void OnChange(object sender, FileSystemEventArgs e)
-        {
-            if (Opts.Verbose)
-                ConsoleWrite($"{e.ChangeType} at {DateTime.Now:s}: {e.FullPath}", ConsoleColor.DarkGray);
-
-            if (Opts.LaunchDelay > 0f) {
-                LaunchTimer.Stop();
-                LaunchTimer.Start();
-            }
-            else StartProcess();
         }
 
         private static void StartProcess()
